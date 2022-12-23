@@ -1,0 +1,106 @@
+import docker
+
+# create a Docker client
+client = docker.from_env()
+
+# initialize a single-node Docker Swarm
+client.swarm.init()
+
+# create an overlay network named "se443_test_net" with a CIDR range of 10.10.10.0/24
+network = client.networks.create("se443_test_net", driver="overlay", scope="global", ipam={
+    "Config": [
+        {
+            "Subnet": "10.10.10.0/24",
+            "IPRange": "10.10.10.0/24",
+            "Gateway": "10.10.10.1"
+        }
+    ]
+})
+
+# print the ID, name, and creation date of the network
+print("Network ID:", network.id)
+print("Network name:", network.name)
+print("Network creation date:", network.attrs["CreatedAt"])
+
+# deploy a service named "broker" with three replicas of the eclipse-mosquitto image
+service = client.services.create("broker", image="eclipse-mosquitto", mode="replicated", replicas=3, restart_policy={"Condition": "always"})
+
+# print the ID, name, and number of running replicas of the service
+print("Service ID:", service.id)
+print("Service name:", service.name)
+print("Number of running replicas:", service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"])
+
+# deploy a service named "subscriber" with three replicas of the efrecon/mqtt-client image
+service = client.services.create("subscriber", image="efrecon/mqtt-client", mode="replicated", replicas=3, restart_policy={"Condition": "always"})
+
+# print the ID, name, and number of running replicas of the service
+print("Service ID:", service.id)
+print("Service name:", service.name)
+print("Number of running replicas:", service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"])
+
+# deploy a service named "publisher" with three replicas of the efrecon/mqtt-client image
+service = client.services.create("publisher", image="efrecon/mqtt-client", mode="replicated", replicas=3, restart_policy={"Condition": "always"})
+
+# print the ID, name, and number of running replicas of the service
+print("Service ID:", service.id)
+print("Service name:", service.name)
+print("Number of running replicas:", service.attrs["Spec"]["Mode"]["Replicated"]["Replicas"])
+
+#To publish and subscribe to the MQTT broker, you will need to use the paho-mqtt library. 
+Here is some sample code that demonstrates how to publish and subscribe to the "alfaisal_uni" topic 
+using the paho-mqtt library
+
+import paho.mqtt.client as mqtt
+
+# create a MQTT client
+client = mqtt.Client()
+
+# set the broker address and port
+broker_address = "localhost"
+broker_port = 1883
+
+# function to handle incoming messages
+def on_message(client, userdata, message):
+    print("Received message:", message.payload.decode())
+
+# function to handle published messages
+def on_publish(client, userdata, result):
+    print("Published message:", userdata)
+
+# function to handle connection to the broker
+def on_connect(client, userdata, flags, rc):
+    print("Connected to broker")
+
+    # subscribe to the "alfaisal_uni" topic
+    client.subscribe("alfaisal_uni")
+
+# set the callbacks
+client.on_message = on_message
+client.on_publish = on_publish
+client.on_connect = on_connect
+
+# connect to the broker
+client.connect(broker_address, broker_port)
+
+# start the client loop
+client.loop_start()
+
+# send a message every second for 5 minutes
+for i in range(300):
+    message = "ID-Name-Surname-No-{}".format(i)
+    client.publish("alfaisal_uni", message)
+    time.sleep(1)
+
+# stop the client loop and disconnect from the broker
+client.loop_stop()
+client.disconnect()
+# remove the overlay network
+client.networks.get("se443_test_net").remove()
+
+# leave the Docker Swarm
+client.swarm.leave()
+
+# delete the services
+client.services.get("broker").remove()
+client.services.get("subscriber").remove()
+client.services.get("publisher").remove()
